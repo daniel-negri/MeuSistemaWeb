@@ -1,0 +1,366 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeuSistema | Painel</title>
+    <link rel="stylesheet" href="estilo.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <!-- LOGIN -->
+    <main id="telaAutenticacao" class="auth-container">
+        <section class="auth-card">
+            <div class="logo">MS</div>
+            <h1>MeuSistema</h1>
+            <p class="subtitulo">Acesse sua conta para continuar</p>
+
+            <form id="formLogin">
+                <label for="loginEmail">E-mail</label>
+                <input
+                    type="email"
+                    id="loginEmail"
+                    placeholder="voce@email.com"
+                    autocomplete="email"
+                    required
+                >
+
+                <label for="loginSenha">Senha</label>
+                <input
+                    type="password"
+                    id="loginSenha"
+                    placeholder="Digite sua senha"
+                    autocomplete="current-password"
+                    required
+                >
+
+                <button type="submit" class="btn-principal">
+                    Entrar
+                </button>
+
+                <p id="mensagemLogin" class="mensagem" role="status"></p>
+            </form>
+
+            <p class="alternar">
+                Ainda não tem conta?
+                <button type="button" id="mostrarCadastro" class="link">
+                    Criar cadastro
+                </button>
+            </p>
+        </section>
+    </main>
+
+    <!-- CADASTRO -->
+    <main id="telaCadastro" class="auth-container oculto">
+        <section class="auth-card">
+            <div class="logo">MS</div>
+            <h1>Criar conta</h1>
+            <p class="subtitulo">Preencha os dados abaixo</p>
+
+            <form id="formCadastro">
+                <label for="cadastroNome">Nome completo</label>
+                <input
+                    type="text"
+                    id="cadastroNome"
+                    placeholder="Seu nome"
+                    minlength="2"
+                    maxlength="80"
+                    autocomplete="name"
+                    required
+                >
+
+                <label for="cadastroEmail">E-mail</label>
+                <input
+                    type="email"
+                    id="cadastroEmail"
+                    placeholder="voce@email.com"
+                    autocomplete="email"
+                    required
+                >
+
+                <label for="cadastroSenha">Senha</label>
+                <input
+                    type="password"
+                    id="cadastroSenha"
+                    placeholder="Mínimo de 8 caracteres"
+                    minlength="8"
+                    maxlength="72"
+                    autocomplete="new-password"
+                    required
+                >
+
+                <button type="submit" class="btn-principal">
+                    Criar minha conta
+                </button>
+
+                <p id="mensagemCadastro" class="mensagem" role="status"></p>
+            </form>
+
+            <p class="alternar">
+                Já possui uma conta?
+                <button type="button" id="mostrarLogin" class="link">
+                    Voltar ao login
+                </button>
+            </p>
+        </section>
+    </main>
+
+    <!-- ÁREA INTERNA -->
+    <div id="painel" class="layout oculto">
+
+        <aside class="sidebar">
+            <div class="marca">
+                <div class="logo logo-pequeno">MS</div>
+                <span>MeuSistema</span>
+            </div>
+
+            <p class="menu-titulo">MENU PRINCIPAL</p>
+
+            <nav class="menu">
+                <button class="menu-item ativo" data-pagina="inicio">
+                    <span>▦</span> Dashboard
+                </button>
+
+                <button class="menu-item" data-pagina="perfil">
+                    <span>♙</span> Meu perfil
+                </button>
+
+                <button
+                    class="menu-item admin-only oculto"
+                    data-pagina="usuarios"
+                >
+                    <span>♧</span> Usuários
+                </button>
+
+                <button class="menu-item" data-pagina="configuracoes">
+                    <span>⚙</span> Configurações
+                </button>
+            </nav>
+
+            <div class="sidebar-rodape">
+                <div id="avatarMenu" class="avatar">U</div>
+                <div class="dados-menu">
+                    <strong id="nomeMenu">Usuário</strong>
+                    <small id="papelMenu">Usuário</small>
+                </div>
+                <button id="btnSair" class="btn-sair" title="Sair da conta">
+                    ↪
+                </button>
+            </div>
+        </aside>
+
+        <main class="conteudo">
+            <header class="topbar">
+                <div>
+                    <p class="texto-pequeno">ÁREA INTERNA</p>
+                    <h2 id="tituloPagina">Dashboard</h2>
+                </div>
+
+                <div class="usuario-topo">
+                    <div id="avatarTopo" class="avatar">U</div>
+                    <div>
+                        <strong id="nomeTopo">Usuário</strong>
+                        <small id="emailTopo">email@exemplo.com</small>
+                    </div>
+                </div>
+            </header>
+
+            <!-- DASHBOARD -->
+            <section id="pagina-inicio" class="pagina">
+                <div class="boas-vindas">
+                    <p class="texto-pequeno">VISÃO GERAL</p>
+                    <h1>Olá, <span id="nomeBoasVindas">usuário</span>!</h1>
+                    <p>Bem-vindo ao seu espaço de navegação.</p>
+                </div>
+
+                <div class="cards-resumo">
+                    <article class="card-resumo">
+                        <div class="icone-card azul">♙</div>
+                        <p>Minha conta</p>
+                        <h3 id="resumoNome">Carregando...</h3>
+                        <small>Nome cadastrado</small>
+                    </article>
+
+                    <article class="card-resumo">
+                        <div class="icone-card verde">✓</div>
+                        <p>Status</p>
+                        <h3>Conectado</h3>
+                        <small>Sessão ativa</small>
+                    </article>
+
+                    <article class="card-resumo">
+                        <div class="icone-card roxo">◇</div>
+                        <p>Permissão</p>
+                        <h3 id="resumoPapel">Usuário</h3>
+                        <small>Tipo de acesso</small>
+                    </article>
+                </div>
+
+                <article class="painel-card">
+                    <h3>Informações da conta</h3>
+                    <p>
+                        Aqui você pode consultar os dados da sua conta
+                        e navegar pelas opções disponíveis no menu.
+                    </p>
+                    <button class="btn-secundario" data-ir="perfil">
+                        Ver meu perfil
+                    </button>
+                </article>
+            </section>
+
+            <!-- PERFIL -->
+            <section id="pagina-perfil" class="pagina oculto">
+                <div class="cabecalho-secao">
+                    <h1>Meu perfil</h1>
+                    <p>Confira as informações da sua conta.</p>
+                </div>
+
+                <article class="painel-card perfil-card">
+                    <div id="avatarPerfil" class="avatar avatar-grande">U</div>
+                    <h2 id="perfilNome">Carregando...</h2>
+                    <span id="perfilPapel" class="etiqueta">Usuário</span>
+
+                    <div class="dados-perfil">
+                        <div>
+                            <span>Identificador</span>
+                            <strong id="perfilId">—</strong>
+                        </div>
+                        <div>
+                            <span>Nome completo</span>
+                            <strong id="perfilNomeDetalhe">—</strong>
+                        </div>
+                        <div>
+                            <span>E-mail</span>
+                            <strong id="perfilEmail">—</strong>
+                        </div>
+                        <div>
+                            <span>Data de cadastro</span>
+                            <strong id="perfilCriado">—</strong>
+                        </div>
+                        <div>
+                            <span>Último acesso</span>
+                            <strong id="perfilAcesso">—</strong>
+                        </div>
+                        <div>
+                            <span>Senha</span>
+                            <strong>Protegida</strong>
+                        </div>
+                    </div>
+
+                    <p class="aviso">
+                        A senha original não é exibida nem armazenada em
+                        texto aberto.
+                    </p>
+                </article>
+            </section>
+
+            <!-- USUÁRIOS: ADMINISTRADOR -->
+            <section id="pagina-usuarios" class="pagina oculto">
+                <div class="cabecalho-secao">
+                    <h1>Usuários cadastrados</h1>
+                    <p>Consulte as contas registradas no sistema.</p>
+                </div>
+
+                <div class="cards-resumo cards-usuarios">
+                    <article class="card-resumo">
+                        <p>Total de contas</p>
+                        <h3 id="totalUsuarios">—</h3>
+                        <small>Contas cadastradas</small>
+                    </article>
+
+                    <article class="card-resumo">
+                        <p>Administradores</p>
+                        <h3 id="totalAdmins">—</h3>
+                        <small>Contas com permissão administrativa</small>
+                    </article>
+                </div>
+
+                <article class="painel-card">
+                    <div class="tabela-topo">
+                        <div>
+                            <h3>Lista de usuários</h3>
+                            <p>Os dados são consultados no banco de dados.</p>
+                        </div>
+
+                        <button id="btnAtualizarUsuarios" class="btn-secundario">
+                            Atualizar lista
+                        </button>
+                    </div>
+
+                    <label for="filtroUsuarios">Pesquisar por nome ou e-mail</label>
+                    <input
+                        id="filtroUsuarios"
+                        type="search"
+                        placeholder="Digite para pesquisar..."
+                    >
+
+                    <p id="mensagemUsuarios" class="mensagem" role="status"></p>
+
+                    <div class="tabela-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>E-mail</th>
+                                    <th>Permissão</th>
+                                    <th>Cadastro</th>
+                                    <th>Último acesso</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaUsuarios">
+                                <tr>
+                                    <td colspan="6">Carregando usuários...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="aviso">
+                        Por segurança, esta lista não exibe senhas nem hashes.
+                    </p>
+                </article>
+            </section>
+
+            <!-- CONFIGURAÇÕES -->
+            <section id="pagina-configuracoes" class="pagina oculto">
+                <div class="cabecalho-secao">
+                    <h1>Configurações</h1>
+                    <p>Personalize a aparência do painel.</p>
+                </div>
+
+                <article class="painel-card">
+                    <h3>Aparência</h3>
+                    <p>Escolha o tema visual da interface.</p>
+
+                    <div class="config-opcao">
+                        <div>
+                            <strong>Modo escuro</strong>
+                            <p>Altera as cores do painel.</p>
+                        </div>
+                        <input type="checkbox" id="alternarTema">
+                    </div>
+                </article>
+
+                <article class="painel-card">
+                    <h3>Sua sessão</h3>
+                    <p>
+                        Para sair com segurança, encerre a sessão usando
+                        o botão abaixo.
+                    </p>
+                    <button id="btnSairConfiguracoes" class="btn-perigo">
+                        Sair da conta
+                    </button>
+                </article>
+            </section>
+
+            <footer class="rodape">
+                MeuSistema · Painel de navegação
+            </footer>
+        </main>
+    </div>
+
+</body>
+</html>
