@@ -1,76 +1,40 @@
 
 const express = require('express');
 const path = require('path');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 
 const app = express();
 const porta = process.env.PORT || 3000;
 const emailAdmin = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
-const db = new Database(path.join(__dirname, 'banco.db'));
-
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        senha TEXT NOT NULL
-    )
-`);
-
-// Adiciona colunas novas sem apagar os usuários existentes
-const colunas = db.prepare(
-    'PRAGMA table_info(usuarios)'
-).all().map(coluna => coluna.name);
-
-if (!colunas.includes('papel')) {
-    db.exec(`
-        ALTER TABLE usuarios
-        ADD COLUMN papel TEXT NOT NULL DEFAULT 'usuario'
-    `);
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+    throw new Error('Configure DATABASE_URL no Render.');
 }
 
-if (!colunas.includes('criado_em')) {
-    db.exec(`
-        ALTER TABLE usuarios
-        ADD COLUMN criado_em TEXT NOT NULL DEFAULT ''
-    `);
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+    throw new Error('Configure SESSION_SECRET no Render.');
 }
 
-if (!colunas.includes('ultimo_acesso')) {
-    db.exec(`
-        ALTER TABLE usuarios
-        ADD COLUMN ultimo_acesso TEXT
-    `);
-}
-
-db.exec(`
-    UPDATE usuarios
-    SET criado_em = datetime('now', 'localtime')
-    WHERE criado_em = ''
-`);
-
-// O e-mail definido pelo responsável recebe permissão de administrador
-if (emailAdmin) {
-    db.prepare(`
-        UPDATE usuarios
-        SET papel = 'admin'
-        WHERE email = ?
-    `).run(emailAdmin);
-}
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false
+});
 
 app.use(express.json({ limit: '10kb' }));
 
-if (process.env.NODE_ENV === 'production' &&
-    !process.env.SESSION_SECRET) {
-    throw new Error('Configure SESSION_SECRET antes de iniciar.');
-}
+app.set('trust proxy', 1);
 
 app.use(session({
+    store: new PgSession({
+        pool: pool,
+        tableName: 'sessoes',
+        createTableIfMissing: true
+    }),
     secret: process.env.SESSION_SECRET ||
         'chave-temporaria-apenas-para-testes-locais',
     resave: false,
@@ -136,11 +100,12 @@ app.post('/cadastro', async (req, res) => {
             });
         }
 
-        const existente = db.prepare(
-            'SELECT id FROM usuarios WHERE email = ?'
-        ).get(emailLimpo);
+        const existente = await pool.query(
+            'SELECT id FROM usuarios WHERE email = $1',
+            [emailLimpo]
+        );
 
-        if (existente) {
+        if (existente.rows.length > 0) {
             return res.status(409).json({
                 mensagem: 'Este e-mail já está cadastrado.'
             });
@@ -151,11 +116,11 @@ app.post('/cadastro', async (req, res) => {
             ? 'admin'
             : 'usuario';
 
-        db.prepare(`
-            INSERT INTO usuarios
-                (nome, email, senha, papel, criado_em)
-            VALUES (?, ?, ?, ?, datetime('now', 'localtime'))
-        `).run(nomeLimpo, emailLimpo, senhaHash, papel);
+        await pool.query(
+            `INSERT INTO usuarios (nome, email, senha, papel)
+             VALUES ($1, $2, $3, $4)`,
+            [nomeLimpo, emailLimpo, senhaHash, papel]
+        );
 
         return res.status(201).json({
             mensagem: 'Cadastro realizado com sucesso! Agora faça login.'
@@ -163,7 +128,7 @@ app.post('/cadastro', async (req, res) => {
     } catch (erro) {
         console.error('Erro no cadastro:', erro.message);
 
-        if (erro.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        if (erro.code === '23505') {
             return res.status(409).json({
                 mensagem: 'Este e-mail já está cadastrado.'
             });
@@ -193,11 +158,14 @@ app.post('/login', async (req, res) => {
 
         const emailLimpo = email.trim().toLowerCase();
 
-        const usuario = db.prepare(`
-            SELECT id, nome, email, senha, papel
-            FROM usuarios
-            WHERE email = ?
-        `).get(emailLimpo);
+        const resultado = await pool.query(
+            `SELECT id, nome, email, senha, papel
+             FROM usuarios
+             WHERE email = $1`,
+            [emailLimpo]
+        );
+
+        const usuario = resultado.rows[0];
 
         if (!usuario || !(await bcrypt.compare(senha, usuario.senha))) {
             return res.status(401).json({
@@ -205,12 +173,10 @@ app.post('/login', async (req, res) => {
             });
         }
 
-        // Atualiza o último acesso
-        db.prepare(`
-            UPDATE usuarios
-            SET ultimo_acesso = datetime('now', 'localtime')
-            WHERE id = ?
-        `).run(usuario.id);
+        await pool.query(
+            'UPDATE usuarios SET ultimo_acesso = CURRENT_TIMESTAMP WHERE id = $1',
+            [usuario.id]
+        );
 
         req.session.regenerate((erro) => {
             if (erro) {
@@ -225,6 +191,7 @@ app.post('/login', async (req, res) => {
 
             req.session.save((erroSalvar) => {
                 if (erroSalvar) {
+                    console.error('Erro ao salvar sessão:', erroSalvar.message);
                     return res.status(500).json({
                         mensagem: 'Não foi possível salvar a sessão.'
                     });
@@ -250,40 +217,51 @@ app.post('/login', async (req, res) => {
 });
 
 // INFORMAÇÕES DA CONTA CONECTADA
-app.get('/sessao', usuarioConectado, (req, res) => {
-    const usuario = db.prepare(`
-        SELECT id, nome, email, papel, criado_em, ultimo_acesso
-        FROM usuarios
-        WHERE id = ?
-    `).get(req.session.usuarioId);
+app.get('/sessao', usuarioConectado, async (req, res) => {
+    try {
+        const resultado = await pool.query(
+            `SELECT id, nome, email, papel, criado_em, ultimo_acesso
+             FROM usuarios
+             WHERE id = $1`,
+            [req.session.usuarioId]
+        );
 
-    if (!usuario) {
-        return res.status(401).json({
-            mensagem: 'Conta não encontrada.'
+        const usuario = resultado.rows[0];
+
+        if (!usuario) {
+            return res.status(401).json({
+                mensagem: 'Conta não encontrada.'
+            });
+        }
+
+        req.session.papel = usuario.papel;
+
+        return res.json({ usuario });
+    } catch (erro) {
+        console.error('Erro ao consultar sessão:', erro.message);
+        return res.status(500).json({
+            mensagem: 'Erro interno ao consultar a conta.'
         });
     }
-
-    // Sincroniza a permissão guardada na sessão
-    req.session.papel = usuario.papel;
-
-    return res.json({ usuario });
 });
 
 // LISTA COMPLETA: SOMENTE ADMINISTRADOR
-app.get('/api/usuarios',
-    usuarioConectado,
-    somenteAdmin,
-    (req, res) => {
-        const usuarios = db.prepare(`
-            SELECT id, nome, email, papel, criado_em, ultimo_acesso
-            FROM usuarios
-            ORDER BY id DESC
-        `).all();
+app.get('/api/usuarios', usuarioConectado, somenteAdmin, async (req, res) => {
+    try {
+        const resultado = await pool.query(
+            `SELECT id, nome, email, papel, criado_em, ultimo_acesso
+             FROM usuarios
+             ORDER BY id DESC`
+        );
 
-        // As senhas e os hashes nunca são enviados ao navegador
-        return res.json({ usuarios });
+        return res.json({ usuarios: resultado.rows });
+    } catch (erro) {
+        console.error('Erro ao listar usuários:', erro.message);
+        return res.status(500).json({
+            mensagem: 'Erro interno ao listar usuários.'
+        });
     }
-);
+});
 
 // SAIR
 app.post('/logout', (req, res) => {
@@ -317,11 +295,55 @@ app.use((req, res) => {
     });
 });
 
-app.listen(porta, () => {
-    console.log(`Site disponível em http://localhost:${porta}`);
-    console.log(
-        emailAdmin
-            ? `Administrador configurado: ${emailAdmin}`
-            : 'ADMIN_EMAIL não configurado. Nenhuma conta será promovida a admin.'
-    );
-});
+// INICIALIZAÇÃO DO BANCO E DO SERVIDOR
+async function iniciarServidor() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(80) NOT NULL,
+                email VARCHAR(254) NOT NULL UNIQUE,
+                senha TEXT NOT NULL,
+                papel VARCHAR(20) NOT NULL DEFAULT 'usuario',
+                criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ultimo_acesso TIMESTAMP
+            )
+        `);
+
+        await pool.query(`
+            ALTER TABLE usuarios
+            ADD COLUMN IF NOT EXISTS papel VARCHAR(20) NOT NULL DEFAULT 'usuario'
+        `);
+
+        await pool.query(`
+            ALTER TABLE usuarios
+            ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        `);
+
+        await pool.query(`
+            ALTER TABLE usuarios
+            ADD COLUMN IF NOT EXISTS ultimo_acesso TIMESTAMP
+        `);
+
+        if (emailAdmin) {
+            await pool.query(
+                `UPDATE usuarios SET papel = 'admin' WHERE email = $1`,
+                [emailAdmin]
+            );
+        }
+
+        app.listen(porta, () => {
+            console.log(`Servidor iniciado na porta ${porta}`);
+            console.log(
+                emailAdmin
+                    ? `Administrador configurado: ${emailAdmin}`
+                    : 'ADMIN_EMAIL não configurado.'
+            );
+        });
+    } catch (erro) {
+    console.error('Erro ao iniciar o servidor:', erro);
+    process.exit(1);
+}
+}
+
+iniciarServidor();
